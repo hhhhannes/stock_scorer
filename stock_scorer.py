@@ -439,6 +439,7 @@ def analyze_ticker(symbol: str) -> dict:
         "fundamentals": f_notes,
         "volatility": f"{ann_vol:.0f}% p.a. annualisiert, ATR14: {atr:.2f}",
         "events": events,
+        "hist": hist,
     }
 
 
