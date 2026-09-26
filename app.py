@@ -11,7 +11,7 @@ Lokal starten:
     streamlit run app.py
 
 Deployment (kostenlos): https://share.streamlit.io (Streamlit Community Cloud)
-    - Repo mit app.py + requirements_streamlit.txt + stock_scorer.py pushen
+    - Repo mit app.py + stock_scorer.py + requirements.txt + requirements-cli.txt pushen
     - Auf share.streamlit.io einloggen, Repo verknuepfen, "Deploy" klicken
 """
 
@@ -20,7 +20,9 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from stock_scorer import analyze_ticker
+import stock_scorer as sc
+
+CACHE_TTL_SECONDS = 3600
 
 st.set_page_config(page_title="Stock Scorer", layout="wide")
 
@@ -43,58 +45,72 @@ with st.sidebar:
         height=80,
         help="z.B. AAPL, MSFT, NVDA oder ZAL.DE, NESN.SW fuer europaeische Boersen",
     )
-    run_button = st.button("🔍 Analysieren", type="primary", use_container_width=True)
+    run_button = st.button("🔍 Analysieren", type="primary", width="stretch")
+    if st.button("Daten neu laden", width="stretch",
+                 help=f"Cache leeren (Daten werden sonst {CACHE_TTL_SECONDS // 60} Min. zwischengespeichert)"):
+        st.cache_data.clear()
 
     st.divider()
     with st.expander("ℹ️ Was bedeuten die Scores?"):
         st.markdown(
-            """
-**Trend** (0-75): Richtung/Konsistenz des Kurstrends
+            f"""
+**Trend** (0-{sc.MAX_SCORE}): Richtung/Konsistenz des Kurstrends
 (SMA-Lage, SMA-Steigung, Regression der letzten 20 Tage)
 
-**Oversold** (0-75): wie stark eine Aktie gegenueber ihrem
+**Oversold** (0-{sc.MAX_SCORE}): wie stark eine Aktie gegenueber ihrem
 eigenen Kursverlauf gedrueckt ist (RSI, 52W-Range, SMA-Abstand,
 Bollinger-Baender)
 
-**Recovery** (0-75): erste technische Anzeichen einer Trendwende
-(RSI-Drehung, SMA10-Rueckeroberung, MACD-Crossover, steigende
-Tiefs, Volumen an Auftagen)
+**Recovery** (0-{sc.MAX_SCORE}): erste technische Anzeichen einer Trendwende
+(Rebound vom 10-Tage-Tief in ATR, SMA10-Rueckeroberung, MACD-Crossover,
+steigende Tiefs, Volumen an Auftagen)
 
-**Setups:**
-- *Pullback+Wende*: Aufwaertstrend, gedrueckt, Wende sichtbar - am haeufigsten gesucht
-- *Fallendes Messer*: Abwaertstrend, gedrueckt, keine Wende bestaetigt - riskant
-- *Reversal-Versuch*: Wende gegen den Haupttrend - riskanter
-- *Nicht guenstig*: laeuft bereits, kein Rabatt mehr
+**Fundamental** (0-{sc.MAX_FUNDAMENTAL_SCORE}): KGV, Wachstum, Marge, Analysten-Kursziel
+
+**Setup** (allein aus dem Oversold-Score):
+- *{sc.SETUP_STRONG_OVERSOLD}* (>= {sc.OVERSOLD_STRONG}): im Backtest einziges stabiles
+  Signal - Ueberrendite nach 20 Tagen, auch im Testzeitraum
+- *{sc.SETUP_PRESSED}* (>= {sc.OVERSOLD_HIGH}): kein belegter Vorteil, nur Beobachtung
+- *{sc.SETUP_NEUTRAL}*: dazwischen
+- *{sc.SETUP_NOT_CHEAP}* (< {sc.OVERSOLD_LOW}): kein Rabatt
+
+Trend und Recovery sind **Kontext**: Im Backtest haben sie das Setup nicht
+verbessert. Ein Abwaertstrend war bei gedrueckten Titeln nicht schlechter.
+Vorsicht: Survivorship-Bias - dekotierte Titel fehlen in den Daten.
             """
         )
 
 # ---------------------------------------------------------------------------
-# Hilfsfunktionen fuer Darstellung
+# Daten & Hilfsfunktionen fuer Darstellung
 # ---------------------------------------------------------------------------
 
-def score_bar(label: str, value: float, max_value: float = 75):
-    st.progress(min(value / max_value, 1.0), text=f"{label}: {value:.0f}/{max_value:.0f}")
+@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+def load_results(symbols: tuple[str, ...]) -> list[dict]:
+    return sc.analyze_many(list(symbols))
 
 
-def setup_badge(verdict: str):
-    if "Pullback+Wende" in verdict or "Erholung" in verdict:
-        st.success(verdict)
-    elif "Fallendes Messer" in verdict:
-        st.error(verdict)
-    elif "Reversal-Versuch" in verdict:
-        st.warning(verdict)
-    else:
-        st.info(verdict)
+SETUP_STYLE = {
+    sc.SETUP_STRONG_OVERSOLD: st.success,
+}
+
+
+def score_bar(label: str, value: float, max_value: float = sc.MAX_SCORE):
+    st.progress(min(max(value / max_value, 0.0), 1.0), text=f"{label}: {value:.0f}/{max_value:.0f}")
+
+
+def setup_badge(result: dict):
+    SETUP_STYLE.get(result["setup"], st.info)(result["verdict"])
+
+
+def notes_markdown(notes: list[str]) -> str:
+    return "\n".join(f"- {n}" for n in notes)
 
 
 def price_chart(hist: pd.DataFrame, symbol: str):
     close = hist["Close"]
     sma50 = close.rolling(50).mean()
     sma200 = close.rolling(200).mean()
-    sma20 = close.rolling(20).mean()
-    std20 = close.rolling(20).std()
-    upper_band = sma20 + 2 * std20
-    lower_band = sma20 - 2 * std20
+    lower_band, _, upper_band = sc.bollinger_bands(close)
 
     fig = make_subplots(
         rows=2, cols=1, shared_xaxes=True, row_heights=[0.75, 0.25],
@@ -102,22 +118,22 @@ def price_chart(hist: pd.DataFrame, symbol: str):
     )
 
     fig.add_trace(go.Scatter(x=hist.index, y=upper_band, line=dict(width=0),
-                              showlegend=False, hoverinfo="skip"), row=1, col=1)
+                             showlegend=False, hoverinfo="skip"), row=1, col=1)
     fig.add_trace(go.Scatter(x=hist.index, y=lower_band, line=dict(width=0),
-                              fill="tonexty", fillcolor="rgba(120,120,120,0.15)",
-                              name="Bollinger-Band", hoverinfo="skip"), row=1, col=1)
+                             fill="tonexty", fillcolor="rgba(120,120,120,0.15)",
+                             name="Bollinger-Band", hoverinfo="skip"), row=1, col=1)
 
     fig.add_trace(go.Scatter(x=hist.index, y=close, name="Kurs",
-                              line=dict(color="#1f77b4", width=1.8)), row=1, col=1)
+                             line=dict(color="#1f77b4", width=1.8)), row=1, col=1)
     fig.add_trace(go.Scatter(x=hist.index, y=sma50, name="SMA50",
-                              line=dict(color="orange", width=1.2, dash="dot")), row=1, col=1)
+                             line=dict(color="orange", width=1.2, dash="dot")), row=1, col=1)
     fig.add_trace(go.Scatter(x=hist.index, y=sma200, name="SMA200",
-                              line=dict(color="red", width=1.2, dash="dot")), row=1, col=1)
+                             line=dict(color="red", width=1.2, dash="dot")), row=1, col=1)
 
     colors = ["#2ca02c" if c >= o else "#d62728"
               for o, c in zip(hist["Open"], hist["Close"])]
     fig.add_trace(go.Bar(x=hist.index, y=hist["Volume"], name="Volumen",
-                          marker_color=colors, showlegend=False), row=2, col=1)
+                         marker_color=colors, showlegend=False), row=2, col=1)
 
     fig.update_layout(
         title=f"{symbol} - Kursverlauf (1 Jahr)",
@@ -134,46 +150,41 @@ def price_chart(hist: pd.DataFrame, symbol: str):
 # ---------------------------------------------------------------------------
 
 if run_button:
-    symbols = [s.strip().upper() for s in ticker_input.split(",") if s.strip()]
+    symbols = list(dict.fromkeys(s.strip().upper() for s in ticker_input.split(",") if s.strip()))
 
     if not symbols:
         st.warning("Bitte mindestens ein Ticker-Symbol eingeben.")
         st.stop()
 
-    results = []
-    progress = st.progress(0.0)
-    for i, sym in enumerate(symbols):
-        with st.spinner(f"Lade {sym} ..."):
-            try:
-                results.append(analyze_ticker(sym))
-            except Exception as e:
-                results.append({"symbol": sym, "error": str(e)})
-        progress.progress((i + 1) / len(symbols))
-    progress.empty()
+    with st.spinner(f"Lade {', '.join(symbols)} ..."):
+        results = load_results(tuple(symbols))
 
-    # --- Zusammenfassungstabelle ---
-    valid = [r for r in results if "error" not in r]
+    valid = sc.sort_results(results)
     errored = [r for r in results if "error" in r]
 
+    # --- Zusammenfassungstabelle ---
     if valid:
         st.subheader("Zusammenfassung")
+        st.caption("Sortiert nach Oversold, dann Recovery")
         summary_df = pd.DataFrame([
             {
                 "Symbol": r["symbol"],
                 "Name": r["name"],
                 "Kurs": round(r["price"], 2),
+                "Waehrung": r["currency"],
                 "Trend": r["trend_score"],
                 "Oversold": r["oversold_score"],
                 "Recovery": r["recovery_score"],
-                "Einschaetzung": r["verdict"],
+                "Fundamental": r["fundamental_score"],
+                "Setup": r["setup"],
+                "Earnings": "⚠️ bald" if r["earnings_warning"] else "",
             }
             for r in valid
-        ]).sort_values(by=["Oversold", "Recovery"], ascending=False)
-        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+        ])
+        st.dataframe(summary_df, width="stretch", hide_index=True)
 
-    if errored:
-        for r in errored:
-            st.error(f"{r['symbol']}: {r['error']}")
+    for r in errored:
+        st.error(f"{r['symbol']}: {r['error']}")
 
     st.divider()
 
@@ -183,22 +194,25 @@ if run_button:
         col1, col2 = st.columns([1, 2])
 
         with col1:
-            st.metric("Kurs", f"{r['price']:.2f}")
+            st.metric("Kurs", sc.format_price(r))
             score_bar("Trend", r["trend_score"])
             score_bar("Oversold", r["oversold_score"])
             score_bar("Recovery", r["recovery_score"])
-            setup_badge(r["verdict"])
+            score_bar("Fundamental", r["fundamental_score"], sc.MAX_FUNDAMENTAL_SCORE)
+            setup_badge(r)
+            if r["earnings_warning"]:
+                st.warning(r["events"])
 
             with st.expander("Details"):
-                st.markdown(f"**Trend:** {r['trend_notes']}")
-                st.markdown(f"**Oversold:** {r['oversold_notes']}")
-                st.markdown(f"**Recovery:** {r['recovery_notes']}")
-                st.markdown(f"**Fundamental:** {r['fundamentals']}")
+                st.markdown("**Trend:**\n" + notes_markdown(r["trend_notes"]))
+                st.markdown("**Oversold:**\n" + notes_markdown(r["oversold_notes"]))
+                st.markdown("**Recovery:**\n" + notes_markdown(r["recovery_notes"]))
+                st.markdown("**Fundamental:**\n" + notes_markdown(r["fundamental_notes"]))
                 st.markdown(f"**Volatilitaet:** {r['volatility']}")
                 st.markdown(f"**Termine:** {r['events']}")
 
         with col2:
-            st.plotly_chart(price_chart(r["hist"], r["symbol"]), use_container_width=True)
+            st.plotly_chart(price_chart(r["hist"], r["symbol"]), width="stretch")
 
         st.divider()
 else:

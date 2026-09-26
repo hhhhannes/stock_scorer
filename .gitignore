@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Backtest-Ausgaben (lokal erzeugt, gross) - ausser dem Referenzlauf in data/
+*.csv
+!data/*.csv
+report.txt
+report.md

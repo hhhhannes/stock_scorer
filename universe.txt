@@ -1,0 +1,110 @@
+# Ticker-Universum fuer backtest.py / calibrate.py
+# Bewusst gemischt: Gewinner UND Verlierer der letzten 10 Jahre, verschiedene
+# Branchen und Maerkte, damit die Kalibrierung nicht nur auf Tech-Gewinnern beruht.
+# (Survivorship-Bias bleibt: dekotierte Titel fehlen, weil Yahoo keine Daten liefert.)
+
+# USA - Tech / Wachstum
+AAPL
+MSFT
+NVDA
+GOOGL
+AMZN
+META
+TSLA
+ADBE
+CRM
+ORCL
+AMD
+NFLX
+# USA - Tech / Wachstum mit grossen Einbruechen
+INTC
+PYPL
+SNAP
+ZM
+PTON
+ROKU
+ETSY
+DOCU
+TWLO
+NIO
+BABA
+# USA - Industrie / Zykliker
+BA
+MMM
+CAT
+GE
+F
+GM
+DE
+UPS
+FDX
+# USA - Konsum
+NKE
+DIS
+SBUX
+MCD
+KO
+PEP
+PG
+TGT
+WMT
+KHC
+EL
+# USA - Gesundheit
+PFE
+JNJ
+MRK
+CVS
+BMY
+GILD
+MRNA
+BIIB
+# USA - Finanzen / Telekom / Energie
+JPM
+BAC
+C
+WFC
+GS
+VZ
+T
+XOM
+CVX
+OXY
+# Deutschland / EU
+SAP.DE
+SIE.DE
+BAYN.DE
+BAS.DE
+VOW3.DE
+BMW.DE
+DBK.DE
+ALV.DE
+ADS.DE
+ZAL.DE
+DHER.DE
+FRE.DE
+ASML.AS
+MC.PA
+AIR.PA
+TTE.PA
+# Schweiz
+NESN.SW
+NOVN.SW
+ROG.SW
+UBSG.SW
+ABBN.SW
+LOGN.SW
+SREN.SW
+CFR.SW
+GIVN.SW
+TEMN.SW
+SCMN.SW
+LONN.SW
+SIKA.SW
+SGSN.SW
+ALC.SW
+GEBN.SW
+STMN.SW
+ZURN.SW
+HOLN.SW
+SOON.SW

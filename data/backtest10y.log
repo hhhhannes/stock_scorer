@@ -1,0 +1,117 @@
+HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: ROG.SW"}}}
+$ROG.SW: No data found, symbol may be delisted
+
+1 Failed download:
+['ROG.SW']: No data found, symbol may be delisted
+Lade 10 Jahre Historie fuer AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, ADBE, CRM, ORCL, AMD, NFLX, INTC, PYPL, SNAP, ZM, PTON, ROKU, ETSY, DOCU, TWLO, NIO, BABA, BA, MMM, CAT, GE, F, GM, DE, UPS, FDX, NKE, DIS, SBUX, MCD, KO, PEP, PG, TGT, WMT, KHC, EL, PFE, JNJ, MRK, CVS, BMY, GILD, MRNA, BIIB, JPM, BAC, C, WFC, GS, VZ, T, XOM, CVX, OXY, SAP.DE, SIE.DE, BAYN.DE, BAS.DE, VOW3.DE, BMW.DE, DBK.DE, ALV.DE, ADS.DE, ZAL.DE, DHER.DE, FRE.DE, ASML.AS, MC.PA, AIR.PA, TTE.PA, NESN.SW, NOVN.SW, ROG.SW, UBSG.SW, ABBN.SW, LOGN.SW, SREN.SW, CFR.SW, GIVN.SW, TEMN.SW, SCMN.SW, LONN.SW, SIKA.SW, SGSN.SW, ALC.SW, GEBN.SW, STMN.SW, ZURN.SW, HOLN.SW, SOON.SW ...
+  AAPL: 2514 Handelstage
+  MSFT: 2514 Handelstage
+  NVDA: 2514 Handelstage
+  GOOGL: 2514 Handelstage
+  AMZN: 2514 Handelstage
+  META: 2514 Handelstage
+  TSLA: 2514 Handelstage
+  ADBE: 2514 Handelstage
+  CRM: 2514 Handelstage
+  ORCL: 2514 Handelstage
+  AMD: 2514 Handelstage
+  NFLX: 2514 Handelstage
+  INTC: 2514 Handelstage
+  PYPL: 2514 Handelstage
+  SNAP: 2406 Handelstage
+  ZM: 1870 Handelstage
+  PTON: 1759 Handelstage
+  ROKU: 2260 Handelstage
+  ETSY: 2514 Handelstage
+  DOCU: 2115 Handelstage
+  TWLO: 2514 Handelstage
+  NIO: 2020 Handelstage
+  BABA: 2514 Handelstage
+  BA: 2514 Handelstage
+  MMM: 2514 Handelstage
+  CAT: 2514 Handelstage
+  GE: 2514 Handelstage
+  F: 2514 Handelstage
+  GM: 2514 Handelstage
+  DE: 2514 Handelstage
+  UPS: 2514 Handelstage
+  FDX: 2514 Handelstage
+  NKE: 2514 Handelstage
+  DIS: 2514 Handelstage
+  SBUX: 2514 Handelstage
+  MCD: 2514 Handelstage
+  KO: 2514 Handelstage
+  PEP: 2514 Handelstage
+  PG: 2514 Handelstage
+  TGT: 2514 Handelstage
+  WMT: 2514 Handelstage
+  KHC: 2514 Handelstage
+  EL: 2514 Handelstage
+  PFE: 2514 Handelstage
+  JNJ: 2514 Handelstage
+  MRK: 2514 Handelstage
+  CVS: 2514 Handelstage
+  BMY: 2514 Handelstage
+  GILD: 2514 Handelstage
+  MRNA: 1960 Handelstage
+  BIIB: 2514 Handelstage
+  JPM: 2514 Handelstage
+  BAC: 2514 Handelstage
+  C: 2514 Handelstage
+  WFC: 2514 Handelstage
+  GS: 2514 Handelstage
+  VZ: 2514 Handelstage
+  T: 2514 Handelstage
+  XOM: 2514 Handelstage
+  CVX: 2514 Handelstage
+  OXY: 2514 Handelstage
+  SAP.DE: 2542 Handelstage
+  SIE.DE: 2542 Handelstage
+  BAYN.DE: 2542 Handelstage
+  BAS.DE: 2542 Handelstage
+  VOW3.DE: 2542 Handelstage
+  BMW.DE: 2542 Handelstage
+  DBK.DE: 2542 Handelstage
+  ALV.DE: 2542 Handelstage
+  ADS.DE: 2542 Handelstage
+  ZAL.DE: 2542 Handelstage
+  DHER.DE: 2348 Handelstage
+  FRE.DE: 2542 Handelstage
+  ASML.AS: 2560 Handelstage
+  MC.PA: 2561 Handelstage
+  AIR.PA: 2561 Handelstage
+  TTE.PA: 2561 Handelstage
+  NESN.SW: 2513 Handelstage
+  NOVN.SW: 2513 Handelstage
+  ROG.SW: zu wenig Historie, uebersprungen
+  UBSG.SW: 2513 Handelstage
+  ABBN.SW: 2513 Handelstage
+  LOGN.SW: 2513 Handelstage
+  SREN.SW: 2513 Handelstage
+  CFR.SW: 2513 Handelstage
+  GIVN.SW: 2513 Handelstage
+  TEMN.SW: 2513 Handelstage
+  SCMN.SW: 2513 Handelstage
+  LONN.SW: 2513 Handelstage
+  SIKA.SW: 2513 Handelstage
+  SGSN.SW: 2513 Handelstage
+  ALC.SW: 1877 Handelstage
+  GEBN.SW: 2513 Handelstage
+  STMN.SW: 2513 Handelstage
+  ZURN.SW: 2513 Handelstage
+  HOLN.SW: 2513 Handelstage
+  SOON.SW: 2513 Handelstage
+
+Backtest: 42391 Stichtage, Horizonte (5, 10, 20) Handelstage
+
+                        Anzahl  Mittel 5T %  Treffer 5T %  Ueber 5T %  Mittel 10T %  Treffer 10T %  Ueber 10T %  Mittel 20T %  Treffer 20T %  Ueber 20T %
+Nicht guenstig           31199         0.29         54.00       -0.02          0.59          54.59        -0.01          1.14          55.36         0.00
+Neutral                   7492         0.17         52.86       -0.10          0.59          53.43        -0.11          1.22          54.12        -0.15
+Fallendes Messer          3368         0.82         56.12        0.43          0.88          55.91         0.27          1.97          57.24         0.30
+Reversal-Versuch           188         0.17         48.40       -0.12          1.21          56.38         0.52          1.07          56.38        -0.32
+Gedrueckt, keine Wende     144         0.70         59.72        0.64          1.07          54.17         1.08          1.62          59.72         1.00
+ALLE (Vergleich)         42391         0.31         53.96        0.00          0.61          54.49         0.00          1.22          55.31        -0.00
+
+Lesart: Ein Setup ist nur dann nuetzlich, wenn es klar und mit genug Stichproben
+ueber der Zeile 'ALLE (Vergleich)' liegt. 'Ueber' = Ueberrendite gegenueber
+allen Titeln in derselben Woche (Markteffekt herausgerechnet).

@@ -1,0 +1,7 @@
+# Kern-Abhaengigkeiten fuer stock_scorer.py / backtest.py (CLI & GitHub-Workflow)
+# yfinance exakt gepinnt: das Paket hat haeufig Breaking Changes.
+# Update: pip install -U yfinance, testen, dann Version hier anpassen.
+yfinance==1.7.0
+pandas>=2.2,<3
+numpy>=1.24
+tabulate>=0.9
