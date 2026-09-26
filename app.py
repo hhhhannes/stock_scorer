@@ -38,7 +38,7 @@ st.caption(
 
 with st.sidebar:
     st.header("Einstellungen")
-    default_tickers = "AAPL, MSFT, NVDA, GOOGL, AMZN"
+    default_tickers = "AAPL, MSFT, NVDA, GOOGL, AMZN, AMAT, MU, CFR.SW, LISN.SW, ZAL.DE, GC=F, SI=F, EUNL.DE, TSLA, BTC-USD"
     ticker_input = st.text_area(
         "Ticker-Symbole (kommagetrennt)",
         value=default_tickers,

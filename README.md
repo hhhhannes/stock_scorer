@@ -28,10 +28,13 @@ python -m venv .venv
 .venv\Scripts\activate            # Windows
 source .venv/bin/activate         # Linux / macOS
 
-pip install -r requirements.txt       # alles inkl. Web-App
+python -m pip install -r requirements.txt  # alles inkl. Web-App
 # oder nur Kommandozeile:
-pip install -r requirements-cli.txt
+python -m pip install -r requirements-cli.txt
 ```
+
+Virtuelle Umgebungen sind nicht verschiebbar. Wurde das Projekt samt `.venv` in einen
+anderen Ordner kopiert oder heruntergeladen, `.venv` dort löschen und neu erstellen.
 
 | Datei | Inhalt |
 |---|---|
@@ -258,7 +261,7 @@ tests/               pytest-Tests (Indikatoren, Scores, Setups, Kalibrierung)
 ## Tests
 
 ```bash
-pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt
 pytest
 ```
 
