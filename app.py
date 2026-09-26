@@ -5,7 +5,7 @@ Interaktive Web-App: Ticker eingeben, Trend-/Oversold-/Recovery-Scores
 und einen Kursverlauf mit SMA50/SMA200/Bollinger-Baendern ansehen.
 
 Installation:
-    pip install -r requirements_streamlit.txt
+    pip install -r requirements.txt
 
 Lokal starten:
     streamlit run app.py
