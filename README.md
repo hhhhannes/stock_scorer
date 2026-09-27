@@ -214,12 +214,24 @@ python backtest.py --universe universe.txt --years 10 --csv backtest.csv
 
 `universe.txt` enthält rund 100 Titel aus USA, Deutschland/EU und der Schweiz –
 bewusst auch Verlierer der letzten Jahre, damit die Auswertung nicht nur auf
-Tech-Gewinnern beruht. Ein Lauf über 10 Jahre dauert einige Minuten.
+Tech-Gewinnern beruht. Die Titel werden parallel auf allen CPU-Kernen gerechnet
+(`--jobs N` begrenzt das), ein Lauf über 10 Jahre dauert trotzdem einige Minuten.
+
+Die Spalte `t Ueber 20T` ist ein **robuster t-Wert** der Überrendite. Er berücksichtigt,
+dass Stichtage nicht unabhängig sind:
+
+- Titel mit Signal in derselben Woche (z.B. März 2020) zählen als ein Cluster, nicht als
+  viele unabhängige Beobachtungen.
+- Überlappende 20-Tage-Horizonte korrelieren benachbarte Wochen (Newey-West, 4 Wochen).
+
+Er fällt deshalb kleiner aus als ein naiver t-Wert. Faustregel: ab etwa 2 ist ein Effekt
+kaum noch mit Zufall zu erklären.
 
 ### `calibrate.py` – Schwellen prüfen
 
 ```bash
 python calibrate.py backtest.csv
+python calibrate.py backtest.csv --split-date 2026-09-26   # Test = nur Daten ab Stichtag
 ```
 
 Arbeitet nur mit der CSV aus dem Backtest (kein erneuter Download, dauert Sekunden).
@@ -236,14 +248,21 @@ verwendet nur die Roh-Scores (`trend`, `oversold`, `recovery`) und ist davon nic
 Ablauf:
 
 1. **Zeitlicher Train/Test-Split** (Standard: jüngste 30 % = Test). Schwellen werden nur
-   auf Train gesucht.
+   auf Train gesucht. Mit `--split-date` beginnt Test an einem festen Datum – z.B. dem der
+   letzten Kalibrierung, damit nur Daten zählen, die bei der Wahl der Schwelle noch
+   unbekannt waren.
 2. **Aussagekraft je Score:** Überrendite nach Score-Klassen, getrennt für Train und Test.
-3. **Suche nach `OVERSOLD_STRONG`** mit Mindesthäufigkeit. Bewertet wird der t-Wert der
-   Überrendite, gemittelt mit den Nachbarn im Raster (stabiles Plateau statt Zufallsspitze).
+3. **Suche nach `OVERSOLD_STRONG`** (Raster 40–70) mit Mindesthäufigkeit. Bewertet wird der
+   robuste t-Wert der Überrendite, gemittelt mit den Nachbarn im Raster (stabiles Plateau
+   statt Zufallsspitze). Hinweis, wenn das Raster flach ist, also keine Schwelle klar besser.
 4. **Kontext-Check:** Überrendite der stark überverkauften Titel nach Trend und Recovery –
    zeigt, ob sich eine zusätzliche Bedingung lohnen würde.
-5. **Vergleich aktuelle vs. neue Schwellen auf Test** mit Urteil *BESTÄTIGT* oder
-   *NICHT BESTÄTIGT* (t < 1) und Warnung, wenn das Optimum am Rand des Rasters liegt.
+5. **Stabilität je Jahr:** trägt das Signal über die Zeit oder nur in einzelnen Phasen?
+6. **Signale wie im Screener:** nur der erste Stichtag einer Phase, danach 30 Tage
+   Sperrfrist pro Titel. Eine lange Phase zählt damit einmal statt jede Woche.
+7. **Urteil:** Der Vorschlag wird nur empfohlen, wenn er auf Test t ≥ 1 erreicht, nicht am
+   Rand des Rasters liegt und auf Test mindestens so gut ist wie die aktuelle Schwelle.
+   Sonst lautet der Vorschlag: aktuelle Werte beibehalten.
 
 Der Vorschlag ist ein Hinweis, keine automatische Übernahme – die Konstanten stehen
 am Anfang von `stock_scorer.py`.
@@ -261,15 +280,20 @@ am Anfang von `stock_scorer.py`.
 
 **Neue Logik (nur Oversold):**
 
-| Setup (Test, 2024–2026) | Anteil | Überrendite 20T | Trefferquote 20T |
-|---|---|---|---|
-| Stark überverkauft (≥ 60) | 2 % | **+1.9 %** (t = 2.7) | 56 % |
-| Gedrückt (45–59) | 6 % | −0.1 % | 47 % |
-| Neutral | 19 % | −0.3 % | 45 % |
-| Nicht günstig | 73 % | 0.0 % | 47 % |
+| Setup (Test, 2024–2026) | Anteil | Überrendite 20T | robuster t | Trefferquote 20T |
+|---|---|---|---|---|
+| Stark überverkauft (≥ 60) | 2 % | **+1.9 %** | 2.6 | 56 % |
+| Gedrückt (45–59) | 6 % | −0.1 % | −0.3 | 47 % |
+| Neutral | 19 % | −0.3 % | −1.0 | 45 % |
+| Nicht günstig | 73 % | 0.0 % | 0.4 | 47 % |
 
-- Auf Train ist die Wahl der Schwelle **nicht eindeutig**: Zwischen 45 und 65 liegen die
-  t-Werte alle bei 0.8–1.3. 60 hat auf Train die höchste mittlere Überrendite (+0.45 %).
+- **Auf Train ist das Signal schwach:** +0.45 % Überrendite, robuster t = 0.7. Die Wahl der
+  Schwelle ist nicht eindeutig: Zwischen 40 und 65 liegen die t-Werte alle bei 0.5–0.8.
+  `calibrate.py` schlägt deshalb vor, 60 beizubehalten.
+- **Je Jahr:** In 8 von 10 Jahren positiv, negativ waren 2020 (−1.3 %) und 2021 (−1.5 %).
+- **Wie im Screener gezählt** (nur Phasenbeginn, 30 Tage Sperrfrist): Train +0.4 % (t = 0.7,
+  439 Signale), Test +1.2 % (t = 1.4, 149 Signale). Auf Test also kleiner als in der
+  Tabelle oben, die jede Woche einer Phase einzeln zählt.
 - **Die Test-Zahl für 60 ist zu optimistisch:** Die Schwelle wurde gewählt, nachdem die
   Test-Daten bereits in einer Diagnose angesehen worden waren. Eine saubere Bestätigung
   gibt es erst mit neuen Daten (z.B. `calibrate.py` in 6–12 Monaten erneut laufen lassen).
@@ -283,8 +307,9 @@ am Anfang von `stock_scorer.py`.
 
 - **Survivorship-Bias:** dekotierte Titel fehlen, weil Yahoo keine Daten liefert.
 - Keine Gebühren, Slippage oder Steuern.
-- Überlappende 20-Tage-Horizonte machen Stichtage voneinander abhängig; t-Werte dienen
-  zum Vergleichen, nicht als Signifikanztest.
+- Überlappende Horizonte und gleichzeitige Signale werden im robusten t-Wert
+  berücksichtigt. Weil die Schwellen auf denselben Daten gesucht und mehrfach angesehen
+  wurden, ist er trotzdem kein strenger Signifikanztest.
 - Fundamentaldaten werden nicht getestet (historische Werte wären nicht verfügbar).
 
 ---
