@@ -12,3 +12,5 @@ AAPL     price     <   300
 NVDA     change    <=  -5
 MSFT     oversold  >=  60
 CFR.SW   oversold  >=  60
+
+AAPL     price     >   1      # TEST - trifft immer zu, wieder entfernen
