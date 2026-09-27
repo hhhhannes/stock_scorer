@@ -9,3 +9,6 @@ __pycache__/
 !data/*.csv
 report.txt
 report.md
+
+# Alarm-Zustand (lokal)
+alerts_state.json

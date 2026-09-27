@@ -84,6 +84,34 @@ Kostenlos veröffentlichen: Repo auf GitHub pushen, auf
 
 Die Ticker-Liste steht im Schritt *Script ausfuehren* des Workflows.
 
+### Preis- und Score-Alarme (Telegram)
+
+`alerts.py` prüft die Regeln in `alerts.txt` und schickt neu ausgelöste Alarme
+per Telegram. `.github/workflows/alerts.yml` führt das Mo–Fr alle 30 Minuten
+von 07:00 bis 21:30 UTC aus (GitHub startet geplante Läufe oft 5–30 Min. später).
+
+```
+# SYMBOL  KENNZAHL  OPERATOR  SCHWELLE
+AAPL      price     <         300      # Kurs
+NVDA      change    <=        -5       # Tagesänderung in %
+MSFT      oversold  >=        60       # auch trend, recovery, fundamental
+```
+
+Eine Regel meldet sich einmal und erst wieder, nachdem die Bedingung
+zwischenzeitlich nicht mehr erfüllt war (Zustand im Actions-Cache).
+
+Einrichtung:
+
+1. In Telegram **@BotFather** anschreiben, `/newbot`, den **Token** notieren.
+2. Dem neuen Bot eine beliebige Nachricht schicken, dann
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` im Browser öffnen und die
+   Zahl bei `"chat":{"id":...}` notieren (**Chat-ID**).
+3. Im GitHub-Repo unter *Settings → Secrets and variables → Actions* die Secrets
+   `TELEGRAM_BOT_TOKEN` und `TELEGRAM_CHAT_ID` anlegen.
+4. Im Actions-Tab den Workflow *Alarme* einmal mit *Run workflow* testen.
+
+Lokal testen ohne zu senden: `python alerts.py --dry-run`
+
 ---
 
 ## Wie die Scores berechnet werden
@@ -250,12 +278,13 @@ am Anfang von `stock_scorer.py`.
 ```
 stock_scorer.py      Indikatoren, Scores, Setup-Logik, Kommandozeile
 app.py               Streamlit-Web-App
+alerts.py            Preis-/Score-Alarme per Telegram (Regeln in alerts.txt)
 backtest.py          Historischer Test der Setups
 calibrate.py         Kalibrierung der Setup-Schwellen
 universe.txt         Ticker-Universum für Backtest/Kalibrierung
 data/                Referenz-Backtest (10 Jahre, 96 Titel) als CSV + Log
 tests/               pytest-Tests (Indikatoren, Scores, Setups, Kalibrierung)
-.github/workflows/   Täglicher Lauf auf GitHub Actions
+.github/workflows/   Täglicher Report und Alarme auf GitHub Actions
 ```
 
 ## Tests

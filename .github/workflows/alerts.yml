@@ -1,0 +1,50 @@
+name: Alarme
+
+on:
+  # Manuell ausloesen ueber den "Run workflow"-Button im Actions-Tab
+  workflow_dispatch:
+  # Mo-Fr alle 30 Minuten von 07:00 bis 21:30 UTC (Cron in UTC!)
+  # GitHub startet geplante Laeufe oft 5-30 Minuten verspaetet.
+  schedule:
+    - cron: "*/30 7-21 * * 1-5"
+
+# Nie zwei Laeufe gleichzeitig (sonst ueberschreiben sie sich den Zustand)
+concurrency:
+  group: alerts
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-*.txt
+
+      - name: Abhaengigkeiten installieren
+        run: pip install -r requirements-cli.txt
+
+      # Zustand (welche Regeln schon gemeldet wurden) vom letzten Lauf holen
+      - name: Zustand laden
+        uses: actions/cache/restore@v4
+        with:
+          path: alerts_state.json
+          key: alerts-state-${{ github.run_id }}
+          restore-keys: alerts-state-
+
+      - name: Alarme pruefen
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python alerts.py
+
+      - name: Zustand speichern
+        uses: actions/cache/save@v4
+        with:
+          path: alerts_state.json
+          key: alerts-state-${{ github.run_id }}

@@ -591,7 +591,10 @@ def quote_from_info(info: dict) -> dict | None:
     if not price or not prev_close:
         return None
     ts = info.get("regularMarketTime")
+    name = info.get("longName") or info.get("shortName")
     return {
+        **({"name": name} if name else {}),
+        **({"currency": info["currency"]} if info.get("currency") else {}),
         "price": float(price),
         "change_pct": (float(price) / float(prev_close) - 1) * 100,
         "market_status": market_status(info),
