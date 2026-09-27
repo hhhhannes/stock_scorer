@@ -25,6 +25,7 @@ from plotly.subplots import make_subplots
 import stock_scorer as sc
 
 CACHE_TTL_SECONDS = 3600
+SIGNAL_HORIZON = 20
 QUOTE_TTL_SECONDS = 60
 DISPLAY_TIMEZONE = ZoneInfo("Europe/Zurich")
 
@@ -99,6 +100,14 @@ def load_quotes(symbols: tuple[str, ...]) -> dict[str, dict]:
     return sc.fetch_quotes(list(symbols))
 
 
+@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+def load_past_signals(symbols: tuple[str, ...]) -> dict[str, pd.DataFrame]:
+    """Fruehere Signale 'Stark ueberverkauft' (2 Jahre Historie fuer 1 Jahr Scores)."""
+    histories = sc.fetch_histories(list(symbols), period="2y")
+    return {sym: sc.past_signals(hist, SIGNAL_HORIZON) for sym, hist in histories.items()
+            if len(hist) >= sc.TRADING_DAYS_PER_YEAR}
+
+
 def with_live_quote(result: dict, quotes: dict[str, dict]) -> dict:
     """Ersetzt Kurs/Tagesaenderung/Marktstatus der (laenger gecachten) Analyse durch den aktuellen Kurs."""
     return {**result, "quote_time": None, **quotes.get(result["symbol"], {})}
@@ -130,7 +139,7 @@ def notes_markdown(notes: list[str]) -> str:
     return "\n".join(f"- {n}" for n in notes)
 
 
-def price_chart(hist: pd.DataFrame):
+def price_chart(hist: pd.DataFrame, signals: pd.DataFrame):
     close = hist["Close"]
     sma50 = close.rolling(50).mean()
     sma200 = close.rolling(200).mean()
@@ -154,6 +163,20 @@ def price_chart(hist: pd.DataFrame):
     fig.add_trace(go.Scatter(x=hist.index, y=sma200, name="SMA200",
                              line=dict(color="red", width=1.2, dash="dot")), row=1, col=1)
 
+    if not signals.empty:
+        hover = [
+            f"{d:%d.%m.%Y}<br>Oversold {row.oversold:.0f}<br>"
+            + (f"nach {SIGNAL_HORIZON} Tagen: {row.ret:+.1f}%" if pd.notna(row.ret)
+               else f"{SIGNAL_HORIZON} Tage noch nicht erreicht")
+            for d, row in signals.iterrows()
+        ]
+        fig.add_trace(go.Scatter(x=signals.index, y=signals["price"], mode="markers",
+                                 name="Signal stark ueberverkauft", hovertext=hover,
+                                 hoverinfo="text",
+                                 marker=dict(symbol="triangle-up", size=12, color="#9467bd",
+                                             line=dict(width=1, color="white"))),
+                      row=1, col=1)
+
     colors = ["#2ca02c" if c >= o else "#d62728"
               for o, c in zip(hist["Open"], hist["Close"])]
     fig.add_trace(go.Bar(x=hist.index, y=hist["Volume"], name="Volumen",
@@ -166,6 +189,24 @@ def price_chart(hist: pd.DataFrame):
     fig.update_yaxes(title_text="Kurs", row=1, col=1)
     fig.update_yaxes(title_text="Volumen", row=2, col=1)
     return fig
+
+
+def signals_in_chart(signals: pd.DataFrame | None, hist: pd.DataFrame) -> pd.DataFrame:
+    """Nur Signale im Zeitraum des Charts (Datum statt Zeitstempel vergleichen: Zeitzonen)."""
+    if signals is None:
+        return pd.DataFrame(columns=["price", "oversold", "ret"])
+    return signals[signals.index.date >= hist.index[0].date()]
+
+
+def signals_caption(signals: pd.DataFrame) -> str:
+    if signals.empty:
+        return "▲ Kein Signal 'Stark ueberverkauft' im letzten Jahr."
+    done = signals["ret"].dropna()
+    text = f"▲ {len(signals)} Signal(e) 'Stark ueberverkauft' im letzten Jahr"
+    if done.empty:
+        return text + f", noch keines {SIGNAL_HORIZON} Tage alt."
+    return (text + f". Nach {SIGNAL_HORIZON} Handelstagen: Ø {done.mean():+.1f}% "
+            f"({(done > 0).sum()}/{len(done)} im Plus).")
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +223,7 @@ if run_button:
     with st.spinner(f"Lade {', '.join(symbols)} ..."):
         results = load_results(tuple(symbols))
         quotes = load_quotes(tuple(symbols))
+        past_signals = load_past_signals(tuple(symbols))
 
     valid = [with_live_quote(r, quotes) for r in sc.sort_results(results)]
     errored = [r for r in results if "error" in r]
@@ -243,7 +285,9 @@ if run_button:
                 st.markdown(f"**Termine:** {r['events']}")
 
         with col2:
-            st.plotly_chart(price_chart(r["hist"]), width="stretch")
+            signals = signals_in_chart(past_signals.get(r["symbol"]), r["hist"])
+            st.plotly_chart(price_chart(r["hist"], signals), width="stretch")
+            st.caption(signals_caption(signals))
 
         st.divider()
 else:

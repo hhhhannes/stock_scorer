@@ -10,5 +10,6 @@ __pycache__/
 report.txt
 report.md
 
-# Alarm-Zustand (lokal)
+# Alarm-/Screener-Zustand (lokal)
 alerts_state.json
+screener_state.json

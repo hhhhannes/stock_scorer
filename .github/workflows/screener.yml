@@ -1,0 +1,49 @@
+name: Screener
+
+on:
+  # Manuell ausloesen ueber den "Run workflow"-Button im Actions-Tab
+  workflow_dispatch:
+  # Di-Sa um 05:30 UTC (07:30 MESZ / 06:30 MEZ): wertet die Schlusskurse Mo-Fr aus
+  schedule:
+    - cron: "30 5 * * 2-6"
+
+concurrency:
+  group: screener
+
+jobs:
+  screener:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-*.txt
+
+      - name: Abhaengigkeiten installieren
+        run: pip install -r requirements-cli.txt
+
+      # Zuletzt gemeldete Signale (Sperrfrist) vom letzten Lauf holen
+      - name: Zustand laden
+        uses: actions/cache/restore@v4
+        with:
+          path: screener_state.json
+          key: screener-state-${{ github.run_id }}
+          restore-keys: screener-state-
+
+      - name: Screener ausfuehren
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python screener.py
+
+      - name: Zustand speichern
+        if: hashFiles('screener_state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: screener_state.json
+          key: screener-state-${{ github.run_id }}

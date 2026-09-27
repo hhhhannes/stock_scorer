@@ -9,9 +9,14 @@ Regel-Format (eine pro Zeile, '#' leitet Kommentare ein):
     AAPL    price     <         300
     MSFT    change    <=        -3
     CFR.SW  oversold  >=        60
+    NESN.SW setup     =         stark
+    AAPL    earnings  <=        7
 
-Kennzahlen: price, change (Tagesaenderung in %), trend, oversold, recovery, fundamental
-Operatoren: <, <=, >, >=
+Kennzahlen: price, change (Tagesaenderung in %), trend, oversold, recovery, fundamental,
+            earnings (Tage bis zu den naechsten Quartalszahlen)
+            -> Operatoren: <, <=, >, >=
+            setup (stark, gedrueckt, neutral, teuer)
+            -> Operatoren: =, !=
 
 Eine Regel meldet sich nur beim Ueberschreiten der Schwelle, nicht bei jedem
 Lauf erneut. Erst wenn die Bedingung nicht mehr erfuellt ist, wird sie wieder
@@ -27,6 +32,7 @@ Aufruf:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import operator
 import os
@@ -46,14 +52,29 @@ METRICS = {
     "oversold": ("Oversold", "oversold_score"),
     "recovery": ("Recovery", "recovery_score"),
     "fundamental": ("Fundamental", "fundamental_score"),
+    "earnings": ("Earnings", "earnings_days"),
+    "setup": ("Setup", "setup"),
 }
 QUOTE_METRICS = {"price", "change"}  # brauchen nur den Kurs, keine volle Analyse
 
-OPERATORS = {
+NUMERIC_OPERATORS = {
     "<": operator.lt,
     "<=": operator.le,
     ">": operator.gt,
     ">=": operator.ge,
+}
+SETUP_OPERATORS = {
+    "=": operator.eq,
+    "!=": operator.ne,
+}
+OPERATORS = {**NUMERIC_OPERATORS, **SETUP_OPERATORS}
+
+# Kurzname in alerts.txt -> Setup-Bezeichnung aus stock_scorer
+SETUP_VALUES = {
+    "stark": sc.SETUP_STRONG_OVERSOLD,
+    "gedrueckt": sc.SETUP_PRESSED,
+    "neutral": sc.SETUP_NEUTRAL,
+    "teuer": sc.SETUP_NOT_CHEAP,
 }
 
 
@@ -62,14 +83,21 @@ class Rule:
     symbol: str
     metric: str
     op: str
-    threshold: float
+    threshold: float | str
+
+    @property
+    def threshold_text(self) -> str:
+        if isinstance(self.threshold, str):
+            return self.threshold
+        return f"{self.threshold:g}"
 
     @property
     def key(self) -> str:
-        return f"{self.symbol} {self.metric} {self.op} {self.threshold:g}"
+        return f"{self.symbol} {self.metric} {self.op} {self.threshold_text}"
 
-    def matches(self, value: float) -> bool:
-        return OPERATORS[self.op](value, self.threshold)
+    def matches(self, value: float | str) -> bool:
+        threshold = SETUP_VALUES[self.threshold] if self.metric == "setup" else self.threshold
+        return OPERATORS[self.op](value, threshold)
 
 
 # ---------------------------------------------------------------------------
@@ -90,13 +118,20 @@ def parse_rules(text: str) -> list[Rule]:
         if metric not in METRICS:
             raise ValueError(f"Zeile {lineno}: unbekannte Kennzahl {metric!r} "
                              f"(erlaubt: {', '.join(METRICS)})")
-        if op not in OPERATORS:
-            raise ValueError(f"Zeile {lineno}: unbekannter Operator {op!r} "
-                             f"(erlaubt: {', '.join(OPERATORS)})")
-        try:
-            value = float(threshold)
-        except ValueError:
-            raise ValueError(f"Zeile {lineno}: Schwelle ist keine Zahl: {threshold!r}") from None
+        allowed = SETUP_OPERATORS if metric == "setup" else NUMERIC_OPERATORS
+        if op not in allowed:
+            raise ValueError(f"Zeile {lineno}: Operator {op!r} passt nicht zu {metric!r} "
+                             f"(erlaubt: {', '.join(allowed)})")
+        if metric == "setup":
+            if threshold.lower() not in SETUP_VALUES:
+                raise ValueError(f"Zeile {lineno}: unbekanntes Setup {threshold!r} "
+                                 f"(erlaubt: {', '.join(SETUP_VALUES)})")
+            value = threshold.lower()
+        else:
+            try:
+                value = float(threshold)
+            except ValueError:
+                raise ValueError(f"Zeile {lineno}: Schwelle ist keine Zahl: {threshold!r}") from None
         rules.append(Rule(symbol.upper(), metric, op, value))
     return rules
 
@@ -115,10 +150,16 @@ def load_values(rules: list[Rule]) -> dict[str, dict]:
         if "error" in result:
             print(f"{result['symbol']}: {result['error']}", file=sys.stderr)
         else:
-            values[result["symbol"]] = result
+            values[result["symbol"]] = {**result, "earnings_days": days_until(result["earnings_date"])}
     for sym, quote in sc.fetch_quotes(symbols).items():
         values[sym] = {**values.get(sym, {"symbol": sym}), **quote}
     return values
+
+
+def days_until(date: dt.date | None, today: dt.date | None = None) -> int | None:
+    if date is None:
+        return None
+    return (date - (today or dt.date.today())).days
 
 
 def format_value(rule: Rule, data: dict) -> str:
@@ -134,6 +175,11 @@ def alert_message(rule: Rule, data: dict) -> str:
     label = METRICS[rule.metric][0]
     name = data.get("name")
     head = f"{rule.symbol} ({name})" if name and name != rule.symbol else rule.symbol
+    if rule.metric == "setup":
+        return f"🔔 {head}: Setup {data['setup']} (Oversold {data['oversold_score']:.0f})"
+    if rule.metric == "earnings":
+        return (f"🔔 {head}: Quartalszahlen in {data['earnings_days']} Tagen "
+                f"({data['earnings_date']:%d.%m.%Y})")
     unit = "%" if rule.metric == "change" else ""
     return f"🔔 {head}: {label} {format_value(rule, data)} {rule.op} {rule.threshold:g}{unit}"
 

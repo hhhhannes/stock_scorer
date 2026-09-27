@@ -1,3 +1,5 @@
+import datetime as dt
+
 import pytest
 
 import alerts
@@ -20,6 +22,9 @@ def test_parse_rules_ignores_comments_and_blank_lines():
     "AAPL volume < 300",
     "AAPL price == 300",
     "AAPL price < abc",
+    "AAPL setup < stark",
+    "AAPL setup = super",
+    "AAPL price = 300",
 ])
 def test_parse_rules_rejects_invalid_lines(line):
     with pytest.raises(ValueError, match="Zeile 1"):
@@ -73,3 +78,37 @@ def test_state_roundtrip(tmp_path):
     assert alerts.load_state(path) == set()
     alerts.save_state(path, {"B", "A"})
     assert alerts.load_state(path) == {"A", "B"}
+
+
+def test_parse_setup_and_earnings_rules():
+    rules = alerts.parse_rules("NESN.SW setup = Stark\nAAPL earnings <= 7")
+    assert rules == [
+        alerts.Rule("NESN.SW", "setup", "=", "stark"),
+        alerts.Rule("AAPL", "earnings", "<=", 7.0),
+    ]
+    assert rules[0].key == "NESN.SW setup = stark"
+
+
+def test_setup_rule_matches_full_setup_label():
+    rule = alerts.Rule("X", "setup", "=", "stark")
+    values = {"X": {"setup": alerts.sc.SETUP_STRONG_OVERSOLD, "oversold_score": 65}}
+    _, messages = alerts.evaluate([rule], values, previous=set())
+    assert messages == [f"🔔 X: Setup {alerts.sc.SETUP_STRONG_OVERSOLD} (Oversold 65)"]
+
+    values["X"]["setup"] = alerts.sc.SETUP_NEUTRAL
+    assert alerts.evaluate([rule], values, previous=set()) == (set(), [])
+    assert alerts.Rule("X", "setup", "!=", "stark").matches(alerts.sc.SETUP_NEUTRAL)
+
+
+def test_earnings_rule():
+    rule = alerts.Rule("AAPL", "earnings", "<=", 7)
+    values = {"AAPL": {"earnings_days": 5, "earnings_date": dt.date(2026, 10, 2)}}
+    _, messages = alerts.evaluate([rule], values, previous=set())
+    assert messages == ["🔔 AAPL: Quartalszahlen in 5 Tagen (02.10.2026)"]
+    # ohne bekannten Termin: keine Daten, keine Meldung
+    assert alerts.evaluate([rule], {"AAPL": {"earnings_days": None}}, set()) == (set(), [])
+
+
+def test_days_until():
+    assert alerts.days_until(dt.date(2026, 10, 2), today=dt.date(2026, 9, 27)) == 5
+    assert alerts.days_until(None) is None

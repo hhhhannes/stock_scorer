@@ -2,8 +2,15 @@
 #
 # Format: SYMBOL  KENNZAHL  OPERATOR  SCHWELLE
 #   Kennzahlen: price (Kurs), change (Tagesaenderung in %),
-#               trend, oversold, recovery (0-75), fundamental (0-40)
-#   Operatoren: <  <=  >  >=
+#               trend, oversold, recovery (0-75), fundamental (0-40),
+#               earnings (Tage bis zu den naechsten Quartalszahlen)
+#     -> Operatoren: <  <=  >  >=
+#   Setup: setup = stark | gedrueckt | neutral | teuer
+#     -> Operatoren: =  !=
+#
+# Beispiele:
+#   NESN.SW  setup     =   stark     # Titel wird stark ueberverkauft
+#   AAPL     earnings  <=  7         # Quartalszahlen in einer Woche oder weniger
 #
 # Eine Regel meldet sich einmal, wenn sie erfuellt wird, und erst wieder,
 # nachdem die Bedingung zwischenzeitlich nicht mehr erfuellt war.
@@ -12,5 +19,3 @@ AAPL     price     <   300
 NVDA     change    <=  -5
 MSFT     oversold  >=  60
 CFR.SW   oversold  >=  60
-
-AAPL     price     >   1      # TEST - trifft immer zu, wieder entfernen

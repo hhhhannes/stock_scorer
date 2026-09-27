@@ -211,3 +211,40 @@ def test_quote_from_info():
 
 def test_quote_from_info_missing_price():
     assert sc.quote_from_info({"marketState": "CLOSED"}) is None
+
+
+# --- Signal-Historie ---------------------------------------------------------
+
+def test_oversold_history_matches_window_scores():
+    hist = make_hist(np.concatenate([geometric(100, 0.001, 260), geometric(126, -0.02, 20)]))
+    scores = sc.oversold_history(hist)
+    assert len(scores) == len(hist) - sc.TRADING_DAYS_PER_YEAR + 1
+    assert scores.index[-1] == hist.index[-1]
+    assert scores.iloc[-1] == sc.oversold_score(hist.iloc[-sc.TRADING_DAYS_PER_YEAR:])[0]
+    assert scores.iloc[-1] >= sc.OVERSOLD_STRONG  # Absturz am Ende -> stark ueberverkauft
+    assert len(sc.oversold_history(hist, days=5)) == 5
+
+
+def test_signal_starts_marks_only_first_day_of_each_phase():
+    s = sc.OVERSOLD_STRONG
+    scores = pd.Series([s, s, 0, s, s, 0, 0, s],
+                       index=pd.bdate_range("2024-01-01", periods=8))
+    # erster Tag zaehlt nicht (unbekannt, ob die Phase schon vorher lief)
+    assert list(sc.signal_starts(scores).index) == [scores.index[3], scores.index[7]]
+
+
+def test_forward_return():
+    close = pd.Series([100.0, 110.0, 121.0], index=pd.bdate_range("2024-01-01", periods=3))
+    assert sc.forward_return(close, close.index[0], 2) == pytest.approx(21.0)
+    assert sc.forward_return(close, close.index[1], 2) is None
+
+
+def test_past_signals_lists_signal_with_forward_return():
+    closes = np.concatenate([geometric(100, 0.001, 280), geometric(132, -0.02, 15),
+                             geometric(98, 0.01, 30)])
+    hist = make_hist(closes)
+    signals = sc.past_signals(hist, horizon=5)
+    assert len(signals) == 1
+    date = signals.index[0]
+    assert signals.loc[date, "oversold"] >= sc.OVERSOLD_STRONG
+    assert signals.loc[date, "ret"] == pytest.approx(sc.forward_return(hist["Close"], date, 5))

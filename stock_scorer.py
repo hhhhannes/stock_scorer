@@ -488,6 +488,44 @@ def classify_setup(os_score: float) -> str:
     return SETUP_NEUTRAL
 
 
+def oversold_history(hist: pd.DataFrame, days: int | None = None) -> pd.Series:
+    """
+    Oversold-Score fuer jeden Handelstag, jeweils aus den 252 Tagen davor
+    (wie im Backtest). Mit 'days' nur fuer die letzten N Tage (schneller).
+    """
+    first = TRADING_DAYS_PER_YEAR
+    if days is not None:
+        first = max(first, len(hist) - days + 1)
+    ends = range(first, len(hist) + 1)
+    scores = [oversold_score(hist.iloc[end - TRADING_DAYS_PER_YEAR:end])[0] for end in ends]
+    return pd.Series(scores, index=hist.index[[end - 1 for end in ends]], dtype=float)
+
+
+def signal_starts(scores: pd.Series) -> pd.Series:
+    """Tage, an denen eine Phase 'Stark ueberverkauft' beginnt (Vortag noch nicht)."""
+    strong = scores >= OVERSOLD_STRONG
+    return scores[strong & ~strong.shift(1, fill_value=True)]
+
+
+def forward_return(close: pd.Series, date, days: int) -> float | None:
+    """Rendite in % von 'date' bis 'days' Handelstage spaeter (None, wenn noch nicht erreicht)."""
+    pos = close.index.get_loc(date)
+    if pos + days >= len(close):
+        return None
+    return (float(close.iloc[pos + days]) / float(close.iloc[pos]) - 1) * 100
+
+
+def past_signals(hist: pd.DataFrame, horizon: int = 20) -> pd.DataFrame:
+    """Fruehere Signale 'Stark ueberverkauft' mit Kurs, Score und Rendite nach 'horizon' Tagen."""
+    starts = signal_starts(oversold_history(hist))
+    close = hist["Close"]
+    return pd.DataFrame({
+        "price": close[starts.index],
+        "oversold": starts,
+        "ret": [forward_return(close, d, horizon) for d in starts.index],
+    }, index=starts.index, dtype=float)
+
+
 def sort_key(result: dict) -> tuple[float, float]:
     """Sortierung fuer Zusammenfassungen: Oversold, bei Gleichstand Recovery."""
     return result["oversold_score"], result["recovery_score"]

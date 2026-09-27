@@ -67,8 +67,9 @@ streamlit run app.py
 
 Ticker in der Seitenleiste eingeben → **Analysieren**. Pro Titel gibt es Score-Balken,
 das Setup als farbiges Badge, Details und einen Kurschart mit SMA50/SMA200,
-Bollinger-Bändern und Volumen. Daten werden eine Stunde zwischengespeichert
-(**Daten neu laden** leert den Cache).
+Bollinger-Bändern und Volumen. Violette Dreiecke im Chart markieren frühere Signale
+*Stark überverkauft* mit der Rendite 20 Handelstage danach. Die Analyse wird eine
+Stunde zwischengespeichert, Kurse eine Minute (**Daten neu laden** leert den Cache).
 
 Kostenlos veröffentlichen: Repo auf GitHub pushen, auf
 [share.streamlit.io](https://share.streamlit.io) verknüpfen, `app.py` wählen, *Deploy*.
@@ -95,6 +96,8 @@ von 07:00 bis 21:30 UTC aus (GitHub startet geplante Läufe oft 5–30 Min. spä
 AAPL      price     <         300      # Kurs
 NVDA      change    <=        -5       # Tagesänderung in %
 MSFT      oversold  >=        60       # auch trend, recovery, fundamental
+NESN.SW   setup     =         stark    # stark, gedrueckt, neutral, teuer (= oder !=)
+AAPL      earnings  <=        7        # Tage bis zu den nächsten Quartalszahlen
 ```
 
 Eine Regel meldet sich einmal und erst wieder, nachdem die Bedingung
@@ -111,6 +114,19 @@ Einrichtung:
 4. Im Actions-Tab den Workflow *Alarme* einmal mit *Run workflow* testen.
 
 Lokal testen ohne zu senden: `python alerts.py --dry-run`
+
+### Screener
+
+`screener.py` prüft alle Titel aus `universe.txt` auf das Setup *Stark
+überverkauft* – das einzige Signal, das im Backtest stabil war – und meldet
+neue Signale per Telegram (gleiche Secrets wie die Alarme).
+`.github/workflows/screener.yml` läuft Di–Sa um 05:30 UTC und wertet damit die
+Schlusskurse Mo–Fr aus.
+
+- Signal = erster Tag einer Phase *Stark überverkauft*
+- Pro Titel 30 Tage Sperrfrist nach einem Signal (Zustand im Actions-Cache)
+
+Lokal testen: `python screener.py --dry-run`
 
 ---
 
@@ -277,14 +293,15 @@ am Anfang von `stock_scorer.py`.
 
 ```
 stock_scorer.py      Indikatoren, Scores, Setup-Logik, Kommandozeile
-app.py               Streamlit-Web-App
+app.py               Streamlit-Web-App (Analyse, frühere Signale im Chart)
+screener.py          Täglicher Screener 'Stark überverkauft' mit Telegram-Meldung
 alerts.py            Preis-/Score-Alarme per Telegram (Regeln in alerts.txt)
 backtest.py          Historischer Test der Setups
 calibrate.py         Kalibrierung der Setup-Schwellen
 universe.txt         Ticker-Universum für Backtest/Kalibrierung
 data/                Referenz-Backtest (10 Jahre, 96 Titel) als CSV + Log
 tests/               pytest-Tests (Indikatoren, Scores, Setups, Kalibrierung)
-.github/workflows/   Täglicher Report und Alarme auf GitHub Actions
+.github/workflows/   Täglicher Report, Screener und Alarme auf GitHub Actions
 ```
 
 ## Tests
