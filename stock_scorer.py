@@ -23,6 +23,7 @@ import argparse
 import sys
 import datetime as dt
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -453,6 +454,21 @@ def earnings_info(earnings_date: dt.date | None, today: dt.date | None = None) -
 # Einordnung
 # ---------------------------------------------------------------------------
 
+MARKET_STATE_LABELS = {
+    "REGULAR": "🟢 offen",
+    "PRE": "🟡 vorboerslich",
+    "PREPRE": "🟡 vorboerslich",
+    "POST": "🟡 nachboerslich",
+    "POSTPOST": "🟡 nachboerslich",
+    "CLOSED": "🔴 geschlossen",
+}
+
+
+def market_status(info: dict) -> str:
+    """Handelsstatus der Boerse aus yfinance-'marketState'."""
+    return MARKET_STATE_LABELS.get(info.get("marketState") or "", "unbekannt")
+
+
 def classify_trend(trend: float) -> str:
     if trend >= TREND_UP:
         return TREND_LABEL_UP
@@ -531,6 +547,8 @@ def analyze_ticker(symbol: str, hist: pd.DataFrame | None = None) -> dict:
         "name": info.get("longName") or info.get("shortName") or symbol,
         "currency": info.get("currency") or "",
         "price": float(hist["Close"].iloc[-1]),
+        "market_status": market_status(info),
+        "change_pct": (float(hist["Close"].iloc[-1]) / float(hist["Close"].iloc[-2]) - 1) * 100,
         "trend_score": trend,
         "oversold_score": os_score,
         "recovery_score": rec_score,
@@ -564,6 +582,35 @@ def analyze_many(symbols: list[str]) -> list[dict]:
         except Exception as e:
             results.append({"symbol": sym, "error": str(e)})
     return results
+
+
+def quote_from_info(info: dict) -> dict | None:
+    """Aktueller Kurs, Tagesaenderung, Marktstatus und Kurszeit aus yfinance-'info'."""
+    price = info.get("regularMarketPrice")
+    prev_close = info.get("regularMarketPreviousClose")
+    if not price or not prev_close:
+        return None
+    ts = info.get("regularMarketTime")
+    return {
+        "price": float(price),
+        "change_pct": (float(price) / float(prev_close) - 1) * 100,
+        "market_status": market_status(info),
+        "quote_time": dt.datetime.fromtimestamp(ts, dt.timezone.utc) if ts else None,
+    }
+
+
+def fetch_quote(symbol: str) -> dict | None:
+    try:
+        return quote_from_info(yf.Ticker(symbol).info or {})
+    except Exception:
+        return None
+
+
+def fetch_quotes(symbols: list[str]) -> dict[str, dict]:
+    """Laedt aktuelle Kurse parallel (leichtgewichtig, fuer kurzen Cache gedacht)."""
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        quotes = dict(zip(symbols, pool.map(fetch_quote, symbols)))
+    return {sym: q for sym, q in quotes.items() if q}
 
 
 # ---------------------------------------------------------------------------

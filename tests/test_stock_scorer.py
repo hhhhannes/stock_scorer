@@ -185,3 +185,29 @@ def test_format_markdown_contains_table_and_errors():
     md = sc.format_markdown([_result("A", 10, 10), {"symbol": "X", "error": "kaputt"}])
     assert "| A |" in md
     assert "- X: kaputt" in md
+
+
+@pytest.mark.parametrize("state, expected", [
+    ("REGULAR", "🟢 offen"),
+    ("PRE", "🟡 vorboerslich"),
+    ("POST", "🟡 nachboerslich"),
+    ("CLOSED", "🔴 geschlossen"),
+    (None, "unbekannt"),
+])
+def test_market_status(state, expected):
+    assert sc.market_status({"marketState": state}) == expected
+
+
+def test_quote_from_info():
+    q = sc.quote_from_info({
+        "regularMarketPrice": 110.0, "regularMarketPreviousClose": 100.0,
+        "regularMarketTime": 1790366401, "marketState": "REGULAR",
+    })
+    assert q["price"] == 110.0
+    assert q["change_pct"] == pytest.approx(10.0)
+    assert q["market_status"] == "🟢 offen"
+    assert q["quote_time"] == dt.datetime.fromtimestamp(1790366401, dt.timezone.utc)
+
+
+def test_quote_from_info_missing_price():
+    assert sc.quote_from_info({"marketState": "CLOSED"}) is None

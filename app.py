@@ -15,6 +15,8 @@ Deployment (kostenlos): https://share.streamlit.io (Streamlit Community Cloud)
     - Auf share.streamlit.io einloggen, Repo verknuepfen, "Deploy" klicken
 """
 
+from zoneinfo import ZoneInfo
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -23,6 +25,8 @@ from plotly.subplots import make_subplots
 import stock_scorer as sc
 
 CACHE_TTL_SECONDS = 3600
+QUOTE_TTL_SECONDS = 60
+DISPLAY_TIMEZONE = ZoneInfo("Europe/Zurich")
 
 st.set_page_config(page_title="Stock Scorer", layout="wide")
 
@@ -47,7 +51,8 @@ with st.sidebar:
     )
     run_button = st.button("🔍 Analysieren", type="primary", width="stretch")
     if st.button("Daten neu laden", width="stretch",
-                 help=f"Cache leeren (Daten werden sonst {CACHE_TTL_SECONDS // 60} Min. zwischengespeichert)"):
+                 help=f"Cache leeren (Analyse wird sonst {CACHE_TTL_SECONDS // 60} Min., "
+                      f"Kurse {QUOTE_TTL_SECONDS} Sek. zwischengespeichert)"):
         st.cache_data.clear()
 
     st.divider()
@@ -89,6 +94,25 @@ def load_results(symbols: tuple[str, ...]) -> list[dict]:
     return sc.analyze_many(list(symbols))
 
 
+@st.cache_data(ttl=QUOTE_TTL_SECONDS, show_spinner=False)
+def load_quotes(symbols: tuple[str, ...]) -> dict[str, dict]:
+    return sc.fetch_quotes(list(symbols))
+
+
+def with_live_quote(result: dict, quotes: dict[str, dict]) -> dict:
+    """Ersetzt Kurs/Tagesaenderung/Marktstatus der (laenger gecachten) Analyse durch den aktuellen Kurs."""
+    return {**result, "quote_time": None, **quotes.get(result["symbol"], {})}
+
+
+def format_quote_time(r: dict) -> str:
+    if r["quote_time"] is None:
+        return "letzter Schlusskurs"
+    local = r["quote_time"].astimezone(DISPLAY_TIMEZONE)
+    if local.date() == pd.Timestamp.now(DISPLAY_TIMEZONE).date():
+        return local.strftime("%H:%M")
+    return local.strftime("%d.%m. %H:%M")
+
+
 SETUP_STYLE = {
     sc.SETUP_STRONG_OVERSOLD: st.success,
 }
@@ -106,7 +130,7 @@ def notes_markdown(notes: list[str]) -> str:
     return "\n".join(f"- {n}" for n in notes)
 
 
-def price_chart(hist: pd.DataFrame, symbol: str):
+def price_chart(hist: pd.DataFrame):
     close = hist["Close"]
     sma50 = close.rolling(50).mean()
     sma200 = close.rolling(200).mean()
@@ -136,7 +160,6 @@ def price_chart(hist: pd.DataFrame, symbol: str):
                          marker_color=colors, showlegend=False), row=2, col=1)
 
     fig.update_layout(
-        title=f"{symbol} - Kursverlauf (1 Jahr)",
         height=480, margin=dict(t=40, b=10, l=10, r=10),
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )
@@ -158,8 +181,9 @@ if run_button:
 
     with st.spinner(f"Lade {', '.join(symbols)} ..."):
         results = load_results(tuple(symbols))
+        quotes = load_quotes(tuple(symbols))
 
-    valid = sc.sort_results(results)
+    valid = [with_live_quote(r, quotes) for r in sc.sort_results(results)]
     errored = [r for r in results if "error" in r]
 
     # --- Zusammenfassungstabelle ---
@@ -172,6 +196,9 @@ if run_button:
                 "Name": r["name"],
                 "Kurs": round(r["price"], 2),
                 "Waehrung": r["currency"],
+                "Tag %": round(r["change_pct"], 2),
+                "Markt": r["market_status"],
+                "Stand": format_quote_time(r),
                 "Trend": r["trend_score"],
                 "Oversold": r["oversold_score"],
                 "Recovery": r["recovery_score"],
@@ -181,7 +208,10 @@ if run_button:
             }
             for r in valid
         ])
-        st.dataframe(summary_df, width="stretch", hide_index=True)
+        st.dataframe(
+            summary_df, width="stretch", height="content", hide_index=True,
+            column_config={"Tag %": st.column_config.NumberColumn(format="%+.2f%%")},
+        )
 
     for r in errored:
         st.error(f"{r['symbol']}: {r['error']}")
@@ -194,7 +224,8 @@ if run_button:
         col1, col2 = st.columns([1, 2])
 
         with col1:
-            st.metric("Kurs", sc.format_price(r))
+            st.metric("Kurs", sc.format_price(r), delta=f"{r['change_pct']:+.2f}%")
+            st.caption(f"Markt: {r['market_status']} · Stand: {format_quote_time(r)}")
             score_bar("Trend", r["trend_score"])
             score_bar("Oversold", r["oversold_score"])
             score_bar("Recovery", r["recovery_score"])
@@ -212,7 +243,7 @@ if run_button:
                 st.markdown(f"**Termine:** {r['events']}")
 
         with col2:
-            st.plotly_chart(price_chart(r["hist"], r["symbol"]), width="stretch")
+            st.plotly_chart(price_chart(r["hist"]), width="stretch")
 
         st.divider()
 else:
